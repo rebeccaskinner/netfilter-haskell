@@ -1,8 +1,9 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module NetfilterQueue where
+module Network.Firewall.NetfilterQueue.NetfilterQueue where
 import Foreign.C
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr
+import Foreign.Storable
 
 data NfqH = NfqH
 type NetfilterHandle = Ptr NfqH
@@ -10,8 +11,24 @@ type NetfilterHandle = Ptr NfqH
 data NfqQH = NfqQH
 type NetfilterQueueHandle = Ptr NfqQH
 
-data NfGenMsg = NfGenMsg
+data NfGenMsg = NfGenMsg { packet_id   :: CUInt
+                         , hw_protocol :: CUShort
+                         , hook        :: CUChar
+                         }
+
 type NetfilterPacketData = Ptr NfGenMsg
+
+instance Storable NfGenMsg where
+    sizeOf _    = sizeOf (0 :: CUInt)   +
+                  sizeOf (0 :: CUShort) + 
+                  sizeOf (0 :: CUChar)
+    alignment _ = sizeOf (0 :: CUInt) * (ceiling $ sizeOf (NfqQH 0 0 0))
+    peek p      = do 
+                    ptr1 <- peek $ ((castPtr p) :: Ptr CUInt)
+                    ptr2 <- peek $ ((castPtr (plusPtr ptr1 (0 :: sizeOf CUInt)))   :: Ptr CUShort)
+                    ptr3 <- peek $ ((castPtr (plusPtr ptr2 (0 :: sizeOf CUShort))) :: Ptr CUChar)
+                  where
+                  ntohl val = 
 
 data NfData = NfData
 type NetfilterDataHandle = Ptr NfData
