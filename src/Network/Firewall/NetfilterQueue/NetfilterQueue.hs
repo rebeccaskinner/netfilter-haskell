@@ -4,6 +4,7 @@ import Foreign.C
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr
 import Foreign.Storable
+import Data.Endian
 
 data NfqH = NfqH
 type NetfilterHandle = Ptr NfqH
@@ -22,13 +23,25 @@ instance Storable NfGenMsg where
     sizeOf _    = sizeOf (0 :: CUInt)   +
                   sizeOf (0 :: CUShort) + 
                   sizeOf (0 :: CUChar)
-    alignment _ = sizeOf (0 :: CUInt) * (ceiling $ sizeOf (NfqQH 0 0 0))
-    peek p      = do 
-                    ptr1 <- peek $ ((castPtr p) :: Ptr CUInt)
-                    ptr2 <- peek $ ((castPtr (plusPtr ptr1 (0 :: sizeOf CUInt)))   :: Ptr CUShort)
-                    ptr3 <- peek $ ((castPtr (plusPtr ptr2 (0 :: sizeOf CUShort))) :: Ptr CUChar)
-                  where
-                  ntohl val = 
+    alignment _ = 16 -- > 8 bytes so we should be 16-byte aligned on x86_64
+    peek p      = let ptr1 = castPtr p :: Ptr CUInt
+                      ptr2 = castPtr (plusPtr ptr1 (sizeOf (0 :: CUInt))) :: Ptr CUShort
+                      ptr3 = castPtr (plusPtr ptr2 (sizeOf (0 :: CUShort))) :: Ptr CUChar
+                  in do
+                      v1 <- peek ptr1
+                      v2 <- peek ptr2
+                      v3 <- peek ptr3
+                      return $ NfGenMsg (fromBigEndian v1) (fromBigEndian v2) v3
+    poke ptr (NfGenMsg pkt_id hw_proto hk) = 
+                let ptr1 = (castPtr ptr) :: Ptr CUInt
+                    ptr2 = castPtr (plusPtr ptr1 (sizeOf (0 :: CUInt))) :: Ptr CUShort
+                    ptr3 = castPtr (plusPtr ptr2 (sizeOf (0 :: CUShort))) :: Ptr CUChar
+                in do
+                    poke ptr1 $ toBigEndian pkt_id
+                    poke ptr2 $ toBigEndian hw_proto
+                    poke ptr3 hk
+                    return ()
+                    
 
 data NfData = NfData
 type NetfilterDataHandle = Ptr NfData
@@ -162,16 +175,6 @@ foreign import ccall unsafe "nfq_set_verdict" nfq_set_verdict ::
     NetfilterPacketBuffer -> -- Packet data buffer
     IO CInt
 
--- As with nfq_set_verdict, but you can also set a mark for the packet
-foreign import ccall unsafe "nfq_set_verdict2" nfq_set_verdict2 ::
-    NetfilterQueueHandle ->  -- The queue handle owning the packet
-    NFPacketID ->            -- The packet id
-    NFVerdict ->             -- Packet Verdict
-    NFMark ->                -- Packet Mark
-    CUInt ->                 -- Packet Buffer Length
-    NetfilterPacketBuffer -> -- Packet Data Buffer
-    IO CInt
-
 -- Message Parsing Functions 
 -- http://netfilter.org/projects/libnetfilter_queue/doxygen/group__Parsing.html
 
@@ -193,5 +196,3 @@ foreign import ccall unsafe "nfq_get_timestamp" nfq_get_timestamp ::
     NetfilterDataHandle -> -- Data handle provided to the packet handler
     NFTimeValue         -> -- Timeval
     IO CInt                -- return code
-
-
