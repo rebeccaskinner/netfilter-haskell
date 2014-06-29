@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Network.Firewall.NetfilterQueue.NetfilterQueue where
+module System.Netfilter.LowLevel.NetfilterQueue where
 import Foreign.C
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr
@@ -54,7 +54,12 @@ type NetfilterUserData = Ptr ()
 data NFTVal   = NFTVal
 type NFTimeValue = Ptr NFTVal
 
-type NfqCB = (NetfilterQueueHandle -> NetfilterPacketData -> NetfilterDataHandle -> NetfilterUserData -> IO CInt)
+type NfqCB = (  NetfilterQueueHandle
+             -> NetfilterPacketData 
+             -> NetfilterDataHandle 
+             -> NetfilterUserData 
+             -> IO CInt)
+
 type NetfilterCallback = FunPtr NfqCB
 
 type NetfilterPacketBuffer = CString
@@ -184,7 +189,7 @@ foreign import ccall unsafe "nfq_get_msg_packet_hdr" nfq_get_msg_packet_hdr ::
     NetfilterDataHandle ->   -- The data handle provided to a packet handler callback
     IO NetfilterPacketHeader -- Packet header from the data handle
 
--- Retreive the mark (if any) that has been set on the packet.  A mark may have
+-- | Retreive the mark (if any) that has been set on the packet.  A mark may have
 -- been set in the kernel, by some iptables rule that has been processed before
 -- the packet was queued, or by another application using libnetfiler_queue
 -- that has already processed the packet.
